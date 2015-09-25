@@ -1,48 +1,7 @@
 import * as _ from 'lodash';
 import * as x11 from 'x11';
 
-function getWindowProperty(X, wid, propertyId) {
-	//console.log("A:", wid, propertyId);
-	return new Promise(function(resolve, reject) {
-		//console.log("B:");
-		X.GetProperty(0, wid, propertyId, 0, 0, 10000000, function(err, result) {
-			//console.log("C:", err, result);
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
-
-function getAtomName(X, propertyId) {
-	//console.log("getAtomName("+propertyId+")");
-	return new Promise((resolve, reject) => {
-		X.GetAtomName(propertyId, function(err, result) {
-			if (err) return reject(err);
-			resolve(result);
-		});
-	});
-}
-
-function bytesToString(bytes, encoding='utf8') {
-	let buffer = new Buffer(bytes);
-	//console.log("buffer: "+buffer);
-	let s = buffer.toString(encoding);
-	//console.log("s: "+s);
-	return _.compact(new Buffer(bytes).toString(encoding).split('\u0000'))
-}
-
-function bytesToNumbers(bytes) {
-	var res = [];
-	for (var i=0; i < bytes.length; i+=4) {
-		res.push(bytes.unpack('L', i)[0]);
-	}
-	return res;
-}
-
-x11.createClient((err, display) => {
-    const X = display.client;
-
-    function quotize(i) { return '\"' + i + '\"'; }
+function getWindowProperties(X, id) {
     function decodeProperty(type, data) {
 		return new Promise((resolve, reject) => {
 			switch(type) {
@@ -86,53 +45,81 @@ x11.createClient((err, display) => {
 		});
     }
 
-    var id = parseInt(process.argv[2]);
-    var root = display.screen[0].root;
-	/*
-    X.ListProperties(id, (err, props) => {
-        props.forEach((p) => {
-            X.GetProperty(0, id, p, 0, 0, 10000000, function(err, propValue) {
-                X.GetAtomName(propValue.type, function(err, typeName) {
-                    X.GetAtomName(p, function(err, propName) {
-                        decodeProperty(typeName, propValue.data, function(decodedData) {
-                            console.log(p + ': ' + propName + '(' + typeName + ') = ' + decodedData);
-                        });
-                    });
-                });
-            });
-        })
-    });
-	*/
-	X.ListProperties(id, (err, props) => {
-		//console.log("A:"+props);
-		const promises = props.map(p => {
-			//console.log(p);
-			return getWindowProperty(X, id, p).then(propValue => {
-				//console.log("B: pid="+p);
-				return getAtomName(X, propValue.type).then(typeName => {
-					//console.log("C: pid="+p);
-					return getAtomName(X, p).then(propName => {
-						//console.log("D: pid="+p);
-						return decodeProperty(typeName, propValue.data).then(decodedData => {
-							//console.log("decoded: "+decodedData);
-							//console.log(p + ': ' + propName + '(' + typeName + ') = ' + decodedData);
-							return [propName, decodedData];
-						}).catch(e => {console.log("ERROR: "+e.name + ': ' + e.message); console.log(e.stack); });
+	return new Promise((resolve, reject) => {
+		X.ListProperties(id, (err, props) => {
+			//console.log("A:"+props);
+			const promises = props.map(p => {
+				//console.log(p);
+				return getWindowProperty(X, id, p).then(propValue => {
+					//console.log("B: pid="+p);
+					return getAtomName(X, propValue.type).then(typeName => {
+						//console.log("C: pid="+p);
+						return getAtomName(X, p).then(propName => {
+							//console.log("D: pid="+p);
+							return decodeProperty(typeName, propValue.data).then(decodedData => {
+								//console.log("decoded: "+decodedData);
+								//console.log(p + ': ' + propName + '(' + typeName + ') = ' + decodedData);
+								return [propName, decodedData];
+							}).catch(e => {console.log("ERROR: "+e.name + ': ' + e.message); console.log(e.stack); });
+						});
 					});
 				});
 			});
-		});
 
-		//console.log("B:");
-		Promise.all(promises).then(pairs => {
-			//console.log("pairs:");
-			//console.log(pairs);
-			//console.log("YO!!!!!!!!!!!");
-			const obj = _.zipObject(pairs);
-			console.log(JSON.stringify(obj, null, '\t'));
-			//pairs.forEach(s => { console.log("|"+s); });
-		}).catch(e => {console.log("ERROR: "+e) });
+			//console.log("B:");
+			resolve(Promise.all(promises).then(pairs => {
+				return _.zipObject(pairs);
+			}));
+		});
 	});
+}
+
+function getWindowProperty(X, wid, propertyId) {
+	//console.log("A:", wid, propertyId);
+	return new Promise(function(resolve, reject) {
+		//console.log("B:");
+		X.GetProperty(0, wid, propertyId, 0, 0, 10000000, function(err, result) {
+			//console.log("C:", err, result);
+			if (err) return reject(err);
+			resolve(result);
+		});
+	});
+}
+
+function getAtomName(X, propertyId) {
+	//console.log("getAtomName("+propertyId+")");
+	return new Promise((resolve, reject) => {
+		X.GetAtomName(propertyId, function(err, result) {
+			if (err) return reject(err);
+			resolve(result);
+		});
+	});
+}
+
+function bytesToString(bytes, encoding='utf8') {
+	let buffer = new Buffer(bytes);
+	//console.log("buffer: "+buffer);
+	let s = buffer.toString(encoding);
+	//console.log("s: "+s);
+	return _.compact(new Buffer(bytes).toString(encoding).split('\u0000'))
+}
+
+function bytesToNumbers(bytes) {
+	var res = [];
+	for (var i=0; i < bytes.length; i+=4) {
+		res.push(bytes.unpack('L', i)[0]);
+	}
+	return res;
+}
+
+x11.createClient((err, display) => {
+    const X = display.client;
+
+    var id = parseInt(process.argv[2]);
+    var root = display.screen[0].root;
+	getWindowProperties(X, id).then(obj => {
+		console.log(JSON.stringify(obj, null, '\t'));
+	}).catch(e => {console.log("ERROR: "+e) });
 	X.on('event', console.log);
 	X.on('error', console.error);
 });
