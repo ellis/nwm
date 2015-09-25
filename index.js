@@ -1,3 +1,5 @@
+require('babel/register');
+
 module.exports = {
   NWM: require('./nwm.js'),
   keysymdef: require('./lib/keysymdef.js'),
