@@ -22,6 +22,14 @@ function getAtomName(X, propertyId) {
 	});
 }
 
+function bytesToString(bytes, encoding='utf8') {
+	let buffer = new Buffer(bytes);
+	console.log("buffer: "+buffer);
+	let s = buffer.toString(encoding);
+	console.log("s: "+s);
+	return _.compact(new Buffer(bytes).toString(encoding).split('\u0000'))
+}
+
 x11.createClient((err, display) => {
     const X = display.client;
 
@@ -29,21 +37,6 @@ x11.createClient((err, display) => {
     function decodeProperty(type, data) {
 		return new Promise((resolve, reject) => {
 			switch(type) {
-				case 'STRING':
-					var result = [];
-					var s = '';
-					for (var i=0; i < data.length; ++i)
-					{
-						if (data[i] == 0) {
-						   result.push(s);
-						   s = '';
-						   continue;
-						}
-						s += String.fromCharCode(data[i]);
-					}
-					result.push(s);
-					return resolve(result);
-
 				case 'ATOM':
 					var numAtoms = data.length/4;
 					var res = [];
@@ -61,6 +54,12 @@ x11.createClient((err, display) => {
 					}
 					return resolve(res);
 
+				case 'STRING':
+					return resolve(bytesToString(data, 'ascii'));
+
+				case 'UTF8_STRING':
+					return resolve(bytesToString(data, 'utf8'));
+
 				case 'WINDOW':
 					var numAtoms = data.length/4;
 					var res = [];
@@ -70,7 +69,7 @@ x11.createClient((err, display) => {
 					return resolve(res);
 
 				default:
-					return resolve('???:' + type);
+					return resolve('???:' + type+":"+_.map(data, function(c) { return c.toString(); }));
 			}
 		});
     }
