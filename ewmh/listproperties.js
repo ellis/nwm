@@ -1,5 +1,5 @@
-import * as x11 from 'x11';
 import * as _ from 'lodash';
+import * as x11 from 'x11';
 
 function getWindowProperty(X, wid, propertyId) {
 	//console.log("A:", wid, propertyId);
@@ -49,13 +49,9 @@ x11.createClient((err, display) => {
 					var res = [];
 					for (var i=0; i < data.length; i+=4) {
 						var a = data.unpack('L', i)[0];
-						X.GetAtomName(a, function(err, str) {
-						   res.push(str);
-						   if (res.length === numAtoms)
-							   resolve(res);
-						});
+						res.push(getAtomName(X, a));
 					}
-					return;
+					return new Promise.all(res);
 
 				case 'INTEGER':
 					var numAtoms = data.length/4;
@@ -97,25 +93,26 @@ x11.createClient((err, display) => {
     });
 	*/
 	X.ListProperties(id, (err, props) => {
+		console.log("A:"+props);
 		const promises = props.map(p => {
-			//console.log(p);
+			console.log(p);
 			return getWindowProperty(X, id, p).then(propValue => {
-				//console.log("propValue: "+propValue);
+				console.log("B: pid="+p);
 				return getAtomName(X, propValue.type).then(typeName => {
+					console.log("C: pid="+p);
 					return getAtomName(X, p).then(propName => {
+						console.log("D: pid="+p);
 						return decodeProperty(typeName, propValue.data).then(decodedData => {
-							//console.log("decoded: "+decodedData);
+							console.log("decoded: "+decodedData);
 							//console.log(p + ': ' + propName + '(' + typeName + ') = ' + decodedData);
 							return [propName, decodedData];
-						});
+						}).catch(e => {console.log("ERROR: "+e) });
 					});
 				});
 			});
 		});
 
-		console.log("A:");
-		console.log(promises[0]);
-
+		console.log("B:");
 		Promise.all(promises).then(pairs => {
 			console.log("pairs:");
 			console.log(pairs);
@@ -123,8 +120,7 @@ x11.createClient((err, display) => {
 			const obj = _.zipObject(pairs);
 			console.log(JSON.stringify(obj, null, '\t'));
 			//pairs.forEach(s => { console.log("|"+s); });
-
-		});
+		}).catch(e => {console.log("ERROR: "+e) });
 	});
 	X.on('event', console.log);
 	X.on('error', console.error);
